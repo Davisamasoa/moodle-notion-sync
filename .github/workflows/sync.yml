@@ -29,4 +29,3 @@ jobs:
           MOODLE_URL: ${{ secrets.MOODLE_URL }}
           MOODLE_TOKEN: ${{ secrets.MOODLE_TOKEN }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}

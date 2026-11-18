@@ -1,10 +1,10 @@
 # moodle-notion-sync
 
-Puxa as pendências do Moodle da UFOP (tarefas, questionários, fóruns com prazo) para o database **Pendências Moodle** no Notion (dentro de *Faculdade 4° período.*).
+Puxa as pendências do Moodle da UFOP (tarefas, questionários, fóruns com prazo) para o database **Tarefas** da página *Faculdade 3° período.* no Notion.
 
-- Item novo no Moodle → cria linha com Status "A fazer"
+- Item novo no Moodle → cria linha com Status "Para fazer"
 - Prazo/nome mudou → atualiza (o Status que você marcou nunca é sobrescrito)
-- Sumiu da lista de ações do Moodle antes do prazo → marca "Entregue" automaticamente
+- Sumiu da lista de ações do Moodle antes do prazo → marca "Concluído" automaticamente
 
 ## Setup (uns 10 min)
 
@@ -22,7 +22,7 @@ Retorna `{"token":"..."}`. Se der erro de serviço desabilitado, veja "Plano B" 
 
 ### 2. Integração do Notion
 1. https://www.notion.so/profile/integrations → **New integration** (Internal) → copie o secret.
-2. Abra a página **Faculdade 4° período.** → `•••` → **Connections** → adicione a integração.
+2. Abra a página **Faculdade 3° período.** → `•••` → **Connections** → adicione a integração.
 
 ### 3. Teste local
 ```bash
@@ -33,7 +33,7 @@ python3 sync.py             # escreve
 
 ### 4. Automatizar (GitHub Actions)
 Crie um repo **privado**, suba estes arquivos e cadastre em *Settings → Secrets → Actions*:
-`MOODLE_URL`, `MOODLE_TOKEN`, `NOTION_TOKEN`, `NOTION_DB_ID` (`41cb47e9b6d181859d60cd9e14903f6a`).
+`MOODLE_URL`, `MOODLE_TOKEN`, `NOTION_TOKEN`, (`NOTION_DB_ID` é opcional: o padrão já é o database Tarefas).
 
 Roda a cada 4h; dá pra disparar na mão em *Actions → Run workflow*.
 
@@ -41,5 +41,5 @@ Roda a cada 4h; dá pra disparar na mão em *Actions → Run workflow*.
 Se a UFOP usar login via SSO e o `token.php` não funcionar: pegue o token pelo app Moodle Mobile (ou pelo cookie de sessão + `lib/ajax/service.php`, que aceita a mesma função `core_calendar_get_action_events_by_timesort`). Me chama que eu adapto.
 
 ## Notas
-- Disciplina é extraída do código no nome do curso (`BCC203`, `MTM112`...). Códigos novos viram opção nova no select sozinhos.
+- Disciplina: o código do curso no Moodle (BCC111, MTM112...) é convertido no nome do select via `DISCIPLINAS` no sync.py. No próximo semestre, é só atualizar esse dicionário.
 - Para provas presenciais (que não estão no Moodle), adicione linhas manuais sem `Moodle ID`: o script ignora.

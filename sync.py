@@ -6,7 +6,7 @@ Só usa a stdlib. Variáveis de ambiente:
   MOODLE_URL       ex.: https://moodlepresencial.ufop.br  (sem barra no final)
   MOODLE_TOKEN     token do serviço moodle_mobile_app (veja README)
   NOTION_TOKEN     secret da integração interna do Notion
-  NOTION_DB_ID     id do database (padrão: o já criado)
+  NOTION_DB_ID     id do database (padrão: "Tarefas" da página Faculdade 3° período.)
   DRY_RUN=1        só mostra o que faria, sem escrever no Notion
 """
 import json
@@ -21,14 +21,37 @@ from datetime import datetime, timedelta, timezone
 MOODLE_URL = os.environ.get("MOODLE_URL", "").rstrip("/")
 MOODLE_TOKEN = os.environ.get("MOODLE_TOKEN", "")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
-NOTION_DB_ID = os.environ.get("NOTION_DB_ID", "41cb47e9b6d181859d60cd9e14903f6a")
+NOTION_DB_ID = os.environ.get("NOTION_DB_ID") or "25db47e9b6d181969abbf3e2af5e83d9"
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 
 BRT = timezone(timedelta(hours=-3))
 LOOKBACK_DAYS = 14  # também traz atrasadas recentes
 
-TIPOS = {"assign": "Tarefa", "quiz": "Questionário", "forum": "Fórum"}
+import unicodedata
+
 COURSE_CODE = re.compile(r"\b([A-Z]{3}\s?\d{3})\b")
+# Código da disciplina (atestado 2026/2) -> nome no select "Disciplina" do Notion
+DISCIPLINAS = {
+    "BCC111": "Programação Funcional",
+    "BCC203": "Estrutura de Dados II",
+    "BCC102": "Matemática Discreta II",
+    "BCC263": "Arquitetura de Computadores",
+    "MTM112": "Introdução à Álgebra Linear",
+    "BCC138": "Programação Orientada a Objetos",
+}
+# Fallback caso o Moodle não traga o código no nome do curso
+PALAVRAS = [
+    ("funcional", "Programação Funcional"),
+    ("estrutura de dados", "Estrutura de Dados II"),
+    ("discreta", "Matemática Discreta II"),
+    ("arquitetura", "Arquitetura de Computadores"),
+    ("algebra", "Introdução à Álgebra Linear"),
+    ("orientada a objeto", "Programação Orientada a Objetos"),
+]
+
+
+def _norm(t):
+    return unicodedata.normalize("NFKD", t or "").encode("ascii", "ignore").decode().lower()
 
 
 # ---------------------------------------------------------------- HTTP
@@ -78,11 +101,16 @@ def fetch_moodle_events():
 
 
 def disciplina(course):
+    course = course or {}
     for field in ("shortname", "fullname", "idnumber"):
-        m = COURSE_CODE.search((course or {}).get(field, "") or "")
-        if m:
-            return m.group(1).replace(" ", "")
-    return ((course or {}).get("shortname") or "Outra")[:100]
+        m = COURSE_CODE.search(course.get(field) or "")
+        if m and m.group(1).replace(" ", "") in DISCIPLINAS:
+            return DISCIPLINAS[m.group(1).replace(" ", "")]
+    texto = _norm(f"{course.get('fullname')} {course.get('shortname')}")
+    for chave, nome in PALAVRAS:
+        if chave in texto:
+            return nome
+    return (course.get("fullname") or course.get("shortname") or "Outra")[:100]
 
 
 # ---------------------------------------------------------------- Notion
@@ -115,8 +143,8 @@ def existing_pages():
                 continue
             out[int(mid)] = {
                 "page_id": p["id"],
-                "status": ((props.get("Status") or {}).get("status") or {}).get("name"),
-                "prazo": ((props.get("Prazo") or {}).get("date") or {}).get("start"),
+                "status": ((props.get("Status") or {}).get("select") or {}).get("name"),
+                "prazo": ((props.get("Data Final") or {}).get("date") or {}).get("start"),
             }
         if not res.get("has_more"):
             return out
@@ -127,10 +155,9 @@ def props_for(ev):
     due = datetime.fromtimestamp(ev["timesort"], BRT).isoformat()
     name = ev.get("activityname") or ev.get("name") or "Sem nome"
     return {
-        "Nome": {"title": [{"text": {"content": name[:2000]}}]},
+        "Tarefa": {"title": [{"text": {"content": name[:2000]}}]},
         "Disciplina": {"select": {"name": disciplina(ev.get("course"))}},
-        "Prazo": {"date": {"start": due}},
-        "Tipo": {"select": {"name": TIPOS.get(ev.get("modulename"), "Outro")}},
+        "Data Final": {"date": {"start": due}},
         "Link": {"url": ev.get("url") or None},
         "Moodle ID": {"number": ev["id"]},
     }
@@ -153,9 +180,9 @@ def main():
         props = props_for(ev)
         page = pages.get(ev["id"])
         if page is None:
-            print(f"+ {props['Disciplina']['select']['name']}: {props['Nome']['title'][0]['text']['content']}")
+            print(f"+ {props['Disciplina']['select']['name']}: {props['Tarefa']['title'][0]['text']['content']}")
             if not DRY_RUN:
-                props["Status"] = {"status": {"name": "A fazer"}}
+                props["Status"] = {"select": {"name": "Para fazer"}}
                 notion("POST", "/pages", {"parent": {"database_id": NOTION_DB_ID}, "properties": props})
             created += 1
         else:
@@ -167,19 +194,19 @@ def main():
     # Sumiu da lista de ações do Moodle antes do prazo => provavelmente você entregou
     now = datetime.now(BRT)
     for mid, page in pages.items():
-        if mid in seen or page["status"] == "Entregue" or not page["prazo"]:
+        if mid in seen or page["status"] == "Concluído" or not page["prazo"]:
             continue
         prazo = datetime.fromisoformat(page["prazo"])
         if prazo.tzinfo is None:
             prazo = prazo.replace(tzinfo=BRT)
         if prazo > now:
-            print(f"✓ marcando como Entregue: Moodle ID {mid}")
+            print(f"✓ marcando como Concluído: Moodle ID {mid}")
             if not DRY_RUN:
                 notion("PATCH", f"/pages/{page['page_id']}",
-                       {"properties": {"Status": {"status": {"name": "Entregue"}}}})
+                       {"properties": {"Status": {"select": {"name": "Concluído"}}}})
             done += 1
 
-    print(f"{len(events)} eventos | {created} novos | {updated} atualizados | {done} entregues"
+    print(f"{len(events)} eventos | {created} novos | {updated} atualizados | {done} concluídas"
           + (" (dry run)" if DRY_RUN else ""))
 
 
