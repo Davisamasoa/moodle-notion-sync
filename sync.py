@@ -151,9 +151,16 @@ def existing_pages():
         cursor = res["next_cursor"]
 
 
+SUFIXOS = re.compile(
+    r"\s+(est[aá] marcad[oa]\(?a?\)? para esta data|est[aá] para entrega|deve ser entregue|"
+    r"est[aá] para vencer|vence|fecha|abre|is due|closes|opens)\s*$",
+    re.IGNORECASE,
+)
+
+
 def props_for(ev):
     due = datetime.fromtimestamp(ev["timesort"], BRT).isoformat()
-    name = ev.get("activityname") or ev.get("name") or "Sem nome"
+    name = ev.get("activityname") or SUFIXOS.sub("", ev.get("name") or "") or "Sem nome"
     return {
         "Tarefa": {"title": [{"text": {"content": name[:2000]}}]},
         "Disciplina": {"select": {"name": disciplina(ev.get("course"))}},
