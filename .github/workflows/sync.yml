@@ -1,0 +1,22 @@
+name: Sync Moodle -> Notion
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"   # a cada 4h (UTC)
+  workflow_dispatch:          # botão "Run workflow" pra rodar na hora
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python sync.py
+        env:
+          MOODLE_URL: ${{ secrets.MOODLE_URL }}
+          MOODLE_TOKEN: ${{ secrets.MOODLE_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
