@@ -201,7 +201,7 @@ def main():
     # Sumiu da lista de ações do Moodle antes do prazo => provavelmente você entregou
     now = datetime.now(BRT)
     for mid, page in pages.items():
-        if mid in seen or page["status"] == "Concluído" or not page["prazo"]:
+        if mid in seen or page["status"] in ("Concluído", "Facultativo") or not page["prazo"]:
             continue
         prazo = datetime.fromisoformat(page["prazo"])
         if prazo.tzinfo is None:
