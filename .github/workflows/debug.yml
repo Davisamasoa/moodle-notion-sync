@@ -4,11 +4,6 @@ jobs:
   d:
     runs-on: ubuntu-latest
     steps:
-      - env:
-          MOODLE_URL: ${{ secrets.MOODLE_URL }}
-        run: |
-          [ "$MOODLE_URL" = "https://moodlepresencial.ufop.br" ] && echo "SECRET_IGUAL" || echo "SECRET_DIFERENTE len=${#MOODLE_URL}"
-          for p in / /login/index.php /webservice/rest/server.php /login/token.php; do
-            echo "$p -> $(curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' https://moodlepresencial.ufop.br$p)"
-          done
-          echo "secret+rest -> $(curl -sk -o /dev/null -w '%{http_code}' "${MOODLE_URL%/}/webservice/rest/server.php")"
+      - run: |
+          curl -sk https://moodlepresencial.ufop.br/ | sed 's/<[^>]*script[^>]*>.*//' | grep -oiE '(href|action|http-equiv|url=)[^ >]{0,140}|<title>[^<]*' | sort -u | head -40
+          echo "---"; curl -sk https://moodlepresencial.ufop.br/ | sed 's/<[^>]*>/ /g' | tr -s ' \n' ' ' | head -c 1500
