@@ -5,5 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -sk https://moodlepresencial.ufop.br/ | sed 's/<[^>]*script[^>]*>.*//' | grep -oiE '(href|action|http-equiv|url=)[^ >]{0,140}|<title>[^<]*' | sort -u | head -40
-          echo "---"; curl -sk https://moodlepresencial.ufop.br/ | sed 's/<[^>]*>/ /g' | tr -s ' \n' ' ' | head -c 1500
+          curl -skI https://moodlepresencial.ufop.br/ | head -15
+          echo "BYTES=$(curl -sk https://moodlepresencial.ufop.br/ | wc -c)"
+          for h in moodlepresencial.ufop.br/moodle moodlepresencial.ufop.br/2026 moodle.ufop.br www.moodle.ufop.br moodlepresencial2.ufop.br ava.ufop.br; do
+            echo "$h -> $(curl -sk -o /dev/null -m 10 -w '%{http_code} %{redirect_url}' https://$h/login/index.php)"
+          done
